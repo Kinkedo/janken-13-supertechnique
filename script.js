@@ -59,12 +59,7 @@ function goBack() {
   if (window._handDetector) window._handDetector.stop();
 }
 
-// まだ手入力（テスト）
-function detectOpponent(hand) {
-  opponent = hand;
-  myHand = decideMyHand(hand, desiredMode);
-  showResult();
-}
+
 
 // じゃんけんロジック
 function decideMyHand(op, mode) {
