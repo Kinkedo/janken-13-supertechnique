@@ -8,8 +8,8 @@
 function createHandDetector(videoEl, onStableHand) {
   // 推定結果の安定化（多数決）
   const history = [];
-  const HISTORY_MAX = 10;
-  const STABLE_MIN = 6; // 同じ結果がこれ以上なら確定
+  const HISTORY_MAX = 15;
+  const STABLE_MIN = 8; // 同じ結果がこれ以上なら確定
 
   let running = false;
   let mpCamera = null;
