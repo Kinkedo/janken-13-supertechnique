@@ -20,27 +20,43 @@ function showScreen(id) {
 async function startCamera() {
   const video = document.getElementById("camera");
 
-  // すでにストリームがあれば再利用
   if (cameraStream) {
     video.srcObject = cameraStream;
-    return;
+  } else {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false
+      });
+      video.srcObject = cameraStream;
+    } catch (err) {
+      console.error("カメラの起動に失敗:", err);
+      alert("カメラを使えませんでした。ブラウザの設定や権限を確認してください。");
+      return;
+    }
   }
 
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }, // 背面カメラ優先
-      audio: false
+  // ---- ここから自動認識 ----
+  // hand_detect.js の createHandDetector を使う
+  // すでに detector が動いている場合は再利用する
+  if (!window._handDetector) {
+    window._handDetector = createHandDetector(video, (stableHand) => {
+      // 既に結果画面なら無視（多重遷移防止）
+      const resultScreen = document.getElementById("result-screen");
+      if (resultScreen.classList.contains("active")) return;
+
+      // stableHand: "rock"|"scissors"|"paper"
+      detectOpponent(stableHand);
     });
-    video.srcObject = cameraStream;
-  } catch (err) {
-    console.error("カメラの起動に失敗:", err);
-    alert("カメラを使えませんでした。ブラウザの設定や権限を確認してください。");
   }
+
+  window._handDetector.start();
 }
 
 // カメラ画面から戻る
 function goBack() {
   showScreen("mode-select");
+  if (window._handDetector) window._handDetector.stop();
 }
 
 // まだ手入力（テスト）
@@ -87,4 +103,5 @@ function restart() {
   opponent = null;
   myHand = null;
   showScreen("mode-select");
+  if (window._handDetector) window._handDetector.stop();
 }
