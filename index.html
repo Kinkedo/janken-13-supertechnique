@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>じゃんけんハッキング</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="mode-select" class="screen active">
+  <h1>じゃんけんハッキング</h1>
+  <p>どうする？</p>
+  <button class="mode-btn" onclick="selectMode('win')">かつ</button>
+  <button class="mode-btn" onclick="selectMode('draw')">あいこ</button>
+  <button class="mode-btn" onclick="selectMode('lose')">まけ</button>
+</div>
+
+<div id="camera-screen" class="screen">
+  <h2>相手の手をうつしてね</h2>
+
+  <div id="camera-box">
+    <video id="camera" autoplay playsinline></video>
+  </div>
+
+  <p>※ 今はテスト中：相手の手はまだボタンで選ぶよ</p>
+
+  <div class="hand-btns">
+    <button onclick="detectOpponent('rock')">グー</button>
+    <button onclick="detectOpponent('scissors')">チョキ</button>
+    <button onclick="detectOpponent('paper')">パー</button>
+  </div>
+
+  <button class="back-btn" onclick="goBack()">← 戻る</button>
+</div>
+
+<div id="result-screen" class="screen">
+  <img id="result-image" src="" alt="result" class="result-img">
+  <p id="result-text"></p>
+  <button onclick="restart()">もう一回</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
