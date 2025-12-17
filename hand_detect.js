@@ -49,18 +49,13 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
     history.length = 0;
 
    mpCamera = new Camera(videoEl, {
-  onFrame: async () => {
-    const now = performance.now();
-    if (!running || (lastDetectionTime && (now - lastDetectionTime < 100))) {
-      // 100ms間隔で実行（10FPS）
-      return;
-    }
-    lastDetectionTime = now;
-    await hands.send({ image: videoEl });
-  },
-  width: 640,
-  height: 480
-});
+      onFrame: async () => {
+        if (!running) return;
+        await hands.send({ image: videoEl });
+      },
+      width: 640,
+      height: 480
+    });
 
     mpCamera.start();
     onStatus?.("起動中…");
