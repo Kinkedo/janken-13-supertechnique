@@ -22,11 +22,19 @@ function setAutoStatus(msg) {
 async function startCameraAndAutoDetect() {
   const video = document.getElementById("camera");
 
-  // 1) カメラ起動
+  // 利用可能なカメラデバイスを確認する
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === "videoinput");
+  const backCamera = videoDevices.find(device => device.label.toLowerCase().includes("back"));
+
+  // バックカメラのデバイスIDを取得
+  const deviceId = backCamera ? backCamera.deviceId : videoDevices[0].deviceId;
+
+  // カメラを起動
   try {
     if (!cameraStream) {
       cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { deviceId: { exact: deviceId } },
         audio: false
       });
     }
@@ -44,7 +52,7 @@ async function startCameraAndAutoDetect() {
     return;
   }
 
-  // 2) 自動認識開始（MediaPipe が読み込めているかチェック）
+  // 後続の処理（変更なし）
   if (typeof createHandDetector !== "function") {
     setAutoStatus("hand_detect.js 読み込み失敗（ファイル名/場所/順番）");
     return;
@@ -68,7 +76,6 @@ async function startCameraAndAutoDetect() {
   setAutoStatus("判定中…（手を映してね）");
   window._handDetector.start();
 }
-
 function goBack() {
   if (window._handDetector) window._handDetector.stop();
   setAutoStatus("待機中…");
