@@ -19,34 +19,40 @@ function setAutoStatus(msg) {
   if (el) el.textContent = msg;
 }
 
-async function startCamera() {
+async function startCameraAndAutoDetect() {
   const video = document.getElementById("camera");
 
-  // すでにストリームがあれば再利用
-  if (cameraStream) {
+  // 利用可能なカメラデバイスを確認する
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === "videoinput");
+  const backCamera = videoDevices.find(device => device.label.toLowerCase().includes("back"));
+
+  // バックカメラのデバイスIDを取得
+  const deviceId = backCamera ? backCamera.deviceId : videoDevices[0].deviceId;
+
+  // カメラを起動
+  try {
+    if (!cameraStream) {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } },
+        audio: false
+      });
+    }
     video.srcObject = cameraStream;
+
+    // iOS対策：metadata待ち
+    await new Promise(resolve => {
+      if (video.readyState >= 2) return resolve();
+      video.onloadedmetadata = () => resolve();
+    });
+
+  } catch (err) {
+    console.error("カメラの起動に失敗:", err);
+    alert("カメラを使えませんでした。権限やブラウザ設定を確認してください。");
     return;
   }
 
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === "videoinput");
-    const backCamera = videoDevices.find(device => device.label.toLowerCase().includes("back"));
-
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: backCamera
-        ? { deviceId: { exact: backCamera.deviceId } } // 外カメラを明示的に選択
-        : { facingMode: "environment" }, // ラベルでBackが見つからなかった場合のフォールバック
-      audio: false
-    });
-
-    video.srcObject = cameraStream;
-  } catch (err) {
-    console.error("カメラの起動に失敗:", err);
-    alert("カメラを使えませんでした。ブラウザの設定や権限を確認してください。");
-  }
-}
-
+  
   // 後続の処理（変更なし）
   if (typeof createHandDetector !== "function") {
     setAutoStatus("hand_detect.js 読み込み失敗（ファイル名/場所/順番）");
