@@ -1,56 +1,86 @@
-let desiredMode = "win"; // win / draw / lose
+let desiredMode = "win";
 let opponent = null;
 let myHand = null;
 let cameraStream = null;
 
-// モード選択 → カメラ画面へ
 function selectMode(mode) {
   desiredMode = mode;
   showScreen("camera-screen");
-  startCamera();
+  startCameraAndAutoDetect();
 }
 
-// 画面切り替え
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
 }
 
-// カメラ起動
-async function startCamera() {
+function setAutoStatus(msg) {
+  const el = document.getElementById("auto-status");
+  if (el) el.textContent = msg;
+}
+
+async function startCameraAndAutoDetect() {
   const video = document.getElementById("camera");
 
-  // すでにストリームがあれば再利用
-  if (cameraStream) {
+  // 1) カメラ起動
+  try {
+    if (!cameraStream) {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false
+      });
+    }
     video.srcObject = cameraStream;
+
+    // iOS対策：metadata待ち
+    await new Promise(resolve => {
+      if (video.readyState >= 2) return resolve();
+      video.onloadedmetadata = () => resolve();
+    });
+
+  } catch (err) {
+    console.error("カメラの起動に失敗:", err);
+    alert("カメラを使えませんでした。権限やブラウザ設定を確認してください。");
     return;
   }
 
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }, // 背面カメラ優先
-      audio: false
-    });
-    video.srcObject = cameraStream;
-  } catch (err) {
-    console.error("カメラの起動に失敗:", err);
-    alert("カメラを使えませんでした。ブラウザの設定や権限を確認してください。");
+  // 2) 自動認識開始（MediaPipe が読み込めているかチェック）
+  if (typeof createHandDetector !== "function") {
+    setAutoStatus("hand_detect.js 読み込み失敗（ファイル名/場所/順番）");
+    return;
   }
+  if (typeof Hands === "undefined" || typeof Camera === "undefined") {
+    setAutoStatus("MediaPipe未ロード（CDNがブロック/読込順）");
+    return;
+  }
+
+  if (!window._handDetector) {
+    window._handDetector = createHandDetector(
+      video,
+      (stableHand) => {
+        if (document.getElementById("result-screen").classList.contains("active")) return;
+        detectOpponent(stableHand);
+      },
+      (status) => setAutoStatus(status)
+    );
+  }
+
+  setAutoStatus("判定中…（手を映してね）");
+  window._handDetector.start();
 }
 
-// カメラ画面から戻る
 function goBack() {
+  if (window._handDetector) window._handDetector.stop();
+  setAutoStatus("待機中…");
   showScreen("mode-select");
 }
 
-// まだ手入力（テスト）
 function detectOpponent(hand) {
   opponent = hand;
   myHand = decideMyHand(hand, desiredMode);
   showResult();
 }
 
-// じゃんけんロジック
 function decideMyHand(op, mode) {
   if (mode === "win") {
     if (op === "rock") return "paper";
@@ -65,13 +95,14 @@ function decideMyHand(op, mode) {
   }
 }
 
-// 結果表示
 function showResult() {
+  if (window._handDetector) window._handDetector.stop();
+
   const img = document.getElementById("result-image");
   const text = document.getElementById("result-text");
 
   img.src = `./img/${myHand}.png`;
-  text.textContent = `あなた：${handName(myHand)}　／　あいて：${handName(opponent)}`;
+  text.textContent = `あなた：${handName(myHand)} ／ あいて：${handName(opponent)}`;
 
   showScreen("result-screen");
 }
@@ -80,10 +111,12 @@ function handName(h) {
   if (h === "rock") return "グー";
   if (h === "scissors") return "チョキ";
   if (h === "paper") return "パー";
+  return h;
 }
 
-// 最初からやり直し
 function restart() {
+  if (window._handDetector) window._handDetector.stop();
+  setAutoStatus("待機中…");
   opponent = null;
   myHand = null;
   showScreen("mode-select");
