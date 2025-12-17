@@ -16,8 +16,8 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
   hands.setOptions({
     maxNumHands: 1,
     modelComplexity: 1,
-    minDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.6
+    minDetectionConfidence: 0.75,
+    minTrackingConfidence: 0.75
   });
 
   hands.onResults((results) => {
@@ -48,14 +48,19 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
     running = true;
     history.length = 0;
 
-    mpCamera = new Camera(videoEl, {
-      onFrame: async () => {
-        if (!running) return;
-        await hands.send({ image: videoEl });
-      },
-      width: 640,
-      height: 480
-    });
+   mpCamera = new Camera(videoEl, {
+  onFrame: async () => {
+    const now = performance.now();
+    if (!running || (lastDetectionTime && (now - lastDetectionTime < 100))) {
+      // 100ms間隔で実行（10FPS）
+      return;
+    }
+    lastDetectionTime = now;
+    await hands.send({ image: videoEl });
+  },
+  width: 640,
+  height: 480
+});
 
     mpCamera.start();
     onStatus?.("起動中…");
