@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>じゃんけんハッキング</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
@@ -20,10 +20,11 @@
   <h2>相手の手をうつしてね</h2>
 
   <div id="camera-box">
-    <video id="camera" autoplay playsinline></video>
+    <video id="camera" autoplay playsinline muted></video>
   </div>
 
-  <p>※ 今はテスト中：相手の手はまだボタンで選ぶよ</p>
+  <p class="hint">自動判定：<span id="auto-status">待機中…</span></p>
+  <p class="hint small">※うまく判定できない時のために手動ボタンも残してあります</p>
 
   <div class="hand-btns">
     <button onclick="detectOpponent('rock')">グー</button>
@@ -35,17 +36,21 @@
 </div>
 
 <div id="result-screen" class="screen">
-  <img id="result-image" src="" alt="result" class="result-img">
+  <img id="result-image" src="" alt="result" class="result-img" />
   <p id="result-text"></p>
   <button onclick="restart()">もう一回</button>
 </div>
+
 <!-- MediaPipe Hands (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
-<!-- 自動手認識ロジック -->
+<!-- 自動手認識ロジック（自作） -->
 <script src="hand_detect.js"></script>
+
+<!-- アプリ本体 -->
 <script src="script.js"></script>
 </body>
 </html>
+
