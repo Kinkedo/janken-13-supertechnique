@@ -79,7 +79,6 @@ function waitVideoReady(video) {
 }
 
 async function startCameraAndDetect() {
-  console.log("startCameraAndDetect called");
   const video = document.getElementById("camera");
   if (!video) return;
 
