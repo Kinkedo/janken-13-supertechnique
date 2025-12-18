@@ -1,12 +1,13 @@
+// script.js (v2.2)
 let desiredMode = "win";
-let opponent = null;
-let myHand = null;
 let cameraStream = null;
+let detector = null;
 
 function selectMode(mode) {
   desiredMode = mode;
+  setBadge(mode);
   showScreen("camera-screen");
-  startCameraAndAutoDetect();
+  startCameraAndDetect();
 }
 
 function showScreen(id) {
@@ -14,79 +15,103 @@ function showScreen(id) {
   document.getElementById(id).classList.add("active");
 }
 
-function setAutoStatus(msg) {
-  const el = document.getElementById("auto-status");
-  if (el) el.textContent = msg;
+function setBadge(mode) {
+  const badge = document.getElementById("mode-badge");
+  if (!badge) return;
+  badge.textContent = (mode === "win") ? "かつ" : (mode === "draw") ? "あいこ" : "まけ";
 }
 
-async function startCameraAndAutoDetect() {
-  const video = document.getElementById("camera");
+function setHint(msg) {
+  const hint = document.getElementById("hint");
+  if (hint) hint.textContent = msg;
+}
 
-  // 利用可能なカメラデバイスを確認する
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter(device => device.kind === "videoinput");
-  const backCamera = videoDevices.find(device => device.label.toLowerCase().includes("back"));
+/* 横向き強化：縦持ちでも横UIにする */
+function applyForceLandscape() {
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  document.body.classList.toggle("force-landscape", isPortrait);
+}
+window.addEventListener("resize", applyForceLandscape);
+window.addEventListener("orientationchange", applyForceLandscape);
+applyForceLandscape();
 
-  // バックカメラのデバイスIDを取得
-  const deviceId = backCamera ? backCamera.deviceId : videoDevices[0].deviceId;
-
-  // カメラを起動
+/* 外カメラ優先 */
+async function startCameraPreferBack(video) {
   try {
-    if (!cameraStream) {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
-        audio: false
-      });
-    }
-    video.srcObject = cameraStream;
-
-    // iOS対策：metadata待ち
-    await new Promise(resolve => {
-      if (video.readyState >= 2) return resolve();
-      video.onloadedmetadata = () => resolve();
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
     });
+    video.srcObject = cameraStream;
+    await waitVideoReady(video);
+    return;
+  } catch (e) {}
 
+  cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  video.srcObject = cameraStream;
+  await waitVideoReady(video);
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d => d.kind === "videoinput");
+
+  const back = cams.find(d => /back|rear|environment/i.test(d.label)) || cams[cams.length - 1];
+  if (!back) return;
+
+  stopTracks(cameraStream);
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: { deviceId: { exact: back.deviceId } },
+    audio: false
+  });
+  video.srcObject = cameraStream;
+  await waitVideoReady(video);
+}
+
+function stopTracks(stream) {
+  if (!stream) return;
+  for (const t of stream.getTracks()) t.stop();
+}
+
+function waitVideoReady(video) {
+  return new Promise(resolve => {
+    if (video.readyState >= 2) return resolve();
+    video.onloadedmetadata = () => resolve();
+  });
+}
+
+async function startCameraAndDetect() {
+  const video = document.getElementById("camera");
+  if (!video) return;
+
+  setHint("カメラ起動中…");
+
+  try {
+    if (!cameraStream) await startCameraPreferBack(video);
+    else { video.srcObject = cameraStream; await waitVideoReady(video); }
   } catch (err) {
-    console.error("カメラの起動に失敗:", err);
-    alert("カメラを使えませんでした。権限やブラウザ設定を確認してください。");
+    console.error(err);
+    alert("カメラを起動できませんでした。権限/ブラウザ設定を確認してください。");
+    showScreen("mode-select");
     return;
   }
 
-  
-  // 後続の処理（変更なし）
-  if (typeof createHandDetector !== "function") {
-    setAutoStatus("hand_detect.js 読み込み失敗（ファイル名/場所/順番）");
-    return;
-  }
-  if (typeof Hands === "undefined" || typeof Camera === "undefined") {
-    setAutoStatus("MediaPipe未ロード（CDNがブロック/読込順）");
+  if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
+    alert("手認識ライブラリの読み込みに失敗しました（CDN/回線）");
+    showScreen("mode-select");
     return;
   }
 
-  if (!window._handDetector) {
-    window._handDetector = createHandDetector(
-      video,
-      (stableHand) => {
-        if (document.getElementById("result-screen").classList.contains("active")) return;
-        detectOpponent(stableHand);
-      },
-      (status) => setAutoStatus(status)
-    );
-  }
+  detector = createHandDetector(video, {
+    warmupMs: 1200,
+    stableStreak: 13,
+    minIntervalMs: 900,
+    onHint: (msg) => setHint(msg),
+    onStableHand: (opponentHand) => {
+      const my = decideMyHand(opponentHand, desiredMode);
+      showResult(my);
+    }
+  });
 
-  setAutoStatus("判定中…（手を映してね）");
-  window._handDetector.start();
-}
-function goBack() {
-  if (window._handDetector) window._handDetector.stop();
-  setAutoStatus("待機中…");
-  showScreen("mode-select");
-}
-
-function detectOpponent(hand) {
-  opponent = hand;
-  myHand = decideMyHand(hand, desiredMode);
-  showResult();
+  detector.start();
 }
 
 function decideMyHand(op, mode) {
@@ -101,31 +126,26 @@ function decideMyHand(op, mode) {
     if (op === "scissors") return "paper";
     if (op === "paper") return "rock";
   }
+  return "rock";
 }
 
-function showResult() {
-  if (window._handDetector) window._handDetector.stop();
+function showResult(myHand) {
+  if (detector) detector.stop();
 
   const img = document.getElementById("result-image");
-  const text = document.getElementById("result-text");
-
   img.src = `./img/${myHand}.png`;
-  text.textContent = `あなた：${handName(myHand)} ／ あいて：${handName(opponent)}`;
 
   showScreen("result-screen");
 }
 
-function handName(h) {
-  if (h === "rock") return "グー";
-  if (h === "scissors") return "チョキ";
-  if (h === "paper") return "パー";
-  return h;
-}
+/* 結果画面：タップで最初に戻る */
+document.addEventListener("click", () => {
+  const result = document.getElementById("result-screen");
+  if (result && result.classList.contains("active")) backToStart();
+});
 
-function restart() {
-  if (window._handDetector) window._handDetector.stop();
-  setAutoStatus("待機中…");
-  opponent = null;
-  myHand = null;
+function backToStart() {
+  if (detector) detector.stop();
+  setHint("相手の手を映して…");
   showScreen("mode-select");
 }
