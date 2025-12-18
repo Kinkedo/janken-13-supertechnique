@@ -69,6 +69,8 @@ function createHandDetector(videoEl, opts) {
     }
   });
 
+  // hand_detect.js (修正箇所：start関数内)
+
   function start() {
     if (running) return;
     running = true;
@@ -83,12 +85,17 @@ function createHandDetector(videoEl, opts) {
         if (!running) return;
         await hands.send({ image: videoEl });
       },
-      width: 640,
-      height: 480
-      facingMode: "environment"
+      width: 1280, // 解像度を少し上げる
+      height: 720,
+      // 'environment' で外カメラをリクエスト（なければ内側が動く）
+      facingMode: "environment" 
     });
 
-    mpCamera.start();
+    mpCamera.start().catch(err => {
+      console.error("Camera Start Error:", err);
+      alert("カメラの開始に失敗しました。");
+    });
+    
     onHint?.("解析開始…");
   }
 
