@@ -84,21 +84,15 @@ async function startCameraAndDetect() {
 
   setHint("カメラ起動中…");
 
-  try {
-    if (!cameraStream) await startCameraPreferBack(video);
-    else { video.srcObject = cameraStream; await waitVideoReady(video); }
-  } catch (err) {
-    console.error(err);
-    alert("カメラを起動できませんでした。権限/ブラウザ設定を確認してください。");
+  // ライブラリチェック
+  if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
+    alert("ライブラリが読み込まれていません。ページを再読み込みしてください。");
     showScreen("mode-select");
     return;
   }
 
-  if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
-    alert("手認識ライブラリの読み込みに失敗しました（CDN/回線）");
-    showScreen("mode-select");
-    return;
-  }
+  // 既に detector があれば停止してから再作成
+  if (detector) detector.stop();
 
   detector = createHandDetector(video, {
     warmupMs: 1200,
@@ -111,7 +105,15 @@ async function startCameraAndDetect() {
     }
   });
 
-  detector.start();
+  try {
+    // script.js 独自の startCameraPreferBack は使わず、
+    // detector.start() (内部の MediaPipe Camera) に任せる
+    detector.start(); 
+  } catch (err) {
+    console.error(err);
+    alert("カメラを開始できませんでした。");
+    showScreen("mode-select");
+  }
 }
 
 function decideMyHand(op, mode) {
