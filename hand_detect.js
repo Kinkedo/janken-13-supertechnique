@@ -1,13 +1,22 @@
-// hand_detect.js
-// MediaPipe Hands を使って rock/scissors/paper を推定する（簡易版）
+// hand_detect.js (v2.2)
 
-function createHandDetector(videoEl, onStableHand, onStatus) {
-  const history = [];
-  const HISTORY_MAX = 12;
-  const STABLE_MIN = 7;
+function createHandDetector(videoEl, opts) {
+  const {
+    onStableHand,
+    onHint,
+    warmupMs = 1100,
+    stableStreak = 12,
+    minIntervalMs = 900,
+  } = opts || {};
 
   let running = false;
   let mpCamera = null;
+
+  let streakHand = null;
+  let streakCount = 0;
+
+  let startTs = 0;
+  let lastFireTs = 0;
 
   const hands = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -16,29 +25,46 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
   hands.setOptions({
     maxNumHands: 1,
     modelComplexity: 1,
-    minDetectionConfidence: 0.75,
-    minTrackingConfidence: 0.75
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.7
   });
 
   hands.onResults((results) => {
     if (!running) return;
 
-    const hand = estimateHand(results);
-    if (!hand) {
-      onStatus?.("手が見えない/不安定");
+    const now = Date.now();
+
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+      onHint?.("相手の手を映して…");
+      streakHand = null;
+      streakCount = 0;
       return;
     }
 
-    onStatus?.(`検出: ${hand}`);
+    if (now - startTs < warmupMs) {
+      onHint?.("解析中…");
+      streakHand = null;
+      streakCount = 0;
+      return;
+    }
 
-    history.push(hand);
-    if (history.length > HISTORY_MAX) history.shift();
+    const hand = estimateHandV2(results);
+    if (!hand) {
+      onHint?.("もうちょい手を大きく…");
+      streakHand = null;
+      streakCount = 0;
+      return;
+    }
 
-    const stable = getStableHand(history, STABLE_MIN);
-    if (stable) {
-      onStatus?.(`確定: ${stable}`);
-      onStableHand(stable);
-      // 1回確定したら止める（誤連続遷移防止）
+    onHint?.("解析中…");
+
+    if (hand === streakHand) streakCount += 1;
+    else { streakHand = hand; streakCount = 1; }
+
+    if (streakCount >= stableStreak && (now - lastFireTs) > minIntervalMs) {
+      lastFireTs = now;
+      onHint?.("確定！");
+      onStableHand?.(hand);
       stop();
     }
   });
@@ -46,9 +72,13 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
   function start() {
     if (running) return;
     running = true;
-    history.length = 0;
 
-   mpCamera = new Camera(videoEl, {
+    streakHand = null;
+    streakCount = 0;
+    startTs = Date.now();
+    lastFireTs = 0;
+
+    mpCamera = new Camera(videoEl, {
       onFrame: async () => {
         if (!running) return;
         await hands.send({ image: videoEl });
@@ -58,26 +88,23 @@ function createHandDetector(videoEl, onStableHand, onStatus) {
     });
 
     mpCamera.start();
-    onStatus?.("起動中…");
+    onHint?.("解析開始…");
   }
 
   function stop() {
     running = false;
-    history.length = 0;
-    if (mpCamera) {
-      mpCamera.stop();
-      mpCamera = null;
-    }
+    streakHand = null;
+    streakCount = 0;
+    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   }
 
   return { start, stop };
 }
 
-function estimateHand(results) {
-  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return null;
+function estimateHandV2(results) {
   const lm = results.multiHandLandmarks[0];
+  const handedness = (results.multiHandedness && results.multiHandedness[0] && results.multiHandedness[0].label) || "Right";
 
-  // 指が伸びているか（超簡易）
   const isExtended = (tip, pip) => lm[tip].y < lm[pip].y;
 
   const index  = isExtended(8, 6);
@@ -85,20 +112,14 @@ function estimateHand(results) {
   const ring   = isExtended(16, 14);
   const pinky  = isExtended(20, 18);
 
-  const extendedCount = [index, middle, ring, pinky].filter(Boolean).length;
+  const thumbTip = lm[4], thumbIp = lm[3];
+  const thumb = (handedness === "Right") ? (thumbTip.x > thumbIp.x) : (thumbTip.x < thumbIp.x);
 
-  if (extendedCount <= 1) return "rock";
+  const count = [thumb, index, middle, ring, pinky].filter(Boolean).length;
+
+  if (count <= 1) return "rock";
   if (index && middle && !ring && !pinky) return "scissors";
-  if (extendedCount >= 3) return "paper";
+  if (count >= 4) return "paper";
 
-  return "scissors";
-}
-
-function getStableHand(history, stableMin) {
-  const counts = {};
-  for (const h of history) counts[h] = (counts[h] || 0) + 1;
-  for (const [k, v] of Object.entries(counts)) {
-    if (v >= stableMin) return k;
-  }
   return null;
 }
