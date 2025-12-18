@@ -1,47 +1,122 @@
+/* ジャンケン13奥義 v2.2（横向き強化版） */
+
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-btm: env(safe-area-inset-bottom);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: sans-serif;
-  text-align: center;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   background: #000;
   color: #fff;
-}
-
-.screen { display: none; padding: 20px; }
-.screen.active { display: block; }
-
-.mode-btn, .hand-btns button, .back-btn, #result-screen button {
-  font-size: 1.4rem;
-  padding: 12px 20px;
-  margin: 10px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
-
-#camera-box {
-  width: 90%;
-  height: 260px;
-  margin: 16px auto;
-  border: 2px dashed #888;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #aaa;
-  border-radius: 10px;
   overflow: hidden;
 }
 
+/* 回転ステージ */
+.stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 端末が縦向きのとき：ステージを回転して横UIにする */
+body.force-landscape .stage {
+  left: 50%;
+  top: 50%;
+  width: 100vh;
+  height: 100vw;
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center;
+}
+
+/* screens */
+.screen { display: none; width: 100%; height: 100%; }
+.screen.active { display: block; }
+
+/* mode select */
+#mode-select {
+  padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-btm));
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 14px;
+  text-align: center;
+}
+#mode-select h1 { margin: 0; font-size: 2.0rem; letter-spacing: 0.02em; }
+#mode-select .sub { margin: 0; opacity: 0.9; }
+
+.mode-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+@media (min-width: 520px) { .mode-row { grid-template-columns: 1fr 1fr 1fr; } }
+
+.mode-btn {
+  border: none;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  cursor: pointer;
+  color: #fff;
+}
+.mode-btn.win  { background: rgba(0, 200, 120, 0.85); }
+.mode-btn.draw { background: rgba(255, 140, 0, 0.85); }
+.mode-btn.lose { background: rgba(255, 60, 60, 0.85); }
+
+.note { margin: 0; font-size: 0.9rem; opacity: 0.7; }
+
+/* camera */
+#camera-screen { position: relative; background: #000; }
 #camera {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.hint { margin: 8px 0; }
-.hint.small { font-size: 0.9rem; color: #bbb; }
+.overlay {
+  position: absolute;
+  inset: 0;
+  padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-btm));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
 
-.result-img {
-  width: 80%;
-  max-width: 420px;
-  margin-top: 30px;
+.badge {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.hint {
+  align-self: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  font-weight: 800;
+  opacity: 0.95;
+}
+
+/* result */
+#result-screen { position: relative; background: #000; }
+#result-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* cover にすると迫力。シュールなら contain */
 }
