@@ -85,6 +85,7 @@ function createHandDetector(videoEl, opts) {
       },
       width: 640,
       height: 480
+      facingMode: "environment"
     });
 
     mpCamera.start();
