@@ -1,5 +1,6 @@
-// script.js (v2.2 修正版)
+// script.js (v2.2 iOS安定化 修正版)
 let desiredMode = "win";
+let cameraStream = null;
 let detector = null;
 
 function selectMode(mode) {
@@ -25,7 +26,7 @@ function setHint(msg) {
   if (hint) hint.textContent = msg;
 }
 
-// 画面回転の処理は維持
+/* 横向き強化：縦持ちでも横UIにする */
 function applyForceLandscape() {
   const isPortrait = window.matchMedia("(orientation: portrait)").matches;
   document.body.classList.toggle("force-landscape", isPortrait);
@@ -34,23 +35,96 @@ window.addEventListener("resize", applyForceLandscape);
 window.addEventListener("orientationchange", applyForceLandscape);
 applyForceLandscape();
 
+/* iOS対策：video準備待ちにタイムアウトを入れる */
+function waitVideoReady(video) {
+  return new Promise(resolve => {
+    if (video.readyState >= 2) return resolve();
+    const t = setTimeout(() => resolve(), 2500);
+    video.onloadedmetadata = () => {
+      clearTimeout(t);
+      resolve();
+    };
+  });
+}
+
+/* iOS対策：明示的に play を試す（失敗しても握りつぶす） */
+async function safePlay(video) {
+  try { await video.play(); } catch (e) {}
+}
+
+/* 外カメラ優先 */
+async function startCameraPreferBack(video) {
+  // 1) facingMode ideal
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+    video.srcObject = cameraStream;
+    await waitVideoReady(video);
+    await safePlay(video);
+    return;
+  } catch (e) {}
+
+  // 2) once get any to unlock labels
+  cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  video.srcObject = cameraStream;
+  await waitVideoReady(video);
+  await safePlay(video);
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d => d.kind === "videoinput");
+
+  const back = cams.find(d => /back|rear|environment/i.test(d.label)) || cams[cams.length - 1];
+  if (!back) return;
+
+  stopTracks(cameraStream);
+
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: { deviceId: { exact: back.deviceId } },
+    audio: false
+  });
+  video.srcObject = cameraStream;
+  await waitVideoReady(video);
+  await safePlay(video);
+}
+
+function stopTracks(stream) {
+  if (!stream) return;
+  for (const t of stream.getTracks()) t.stop();
+}
+
 async function startCameraAndDetect() {
   const video = document.getElementById("camera");
   if (!video) return;
 
   setHint("カメラ起動中…");
 
-  // ライブラリ存在チェック
-  if (typeof Hands === "undefined" || typeof Camera === "undefined") {
-    alert("ライブラリがまだ読み込まれていません。数秒待ってからやり直してください。");
+  try {
+    if (!cameraStream) {
+      await startCameraPreferBack(video);
+    } else {
+      video.srcObject = cameraStream;
+      await waitVideoReady(video);
+      await safePlay(video);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("カメラを起動できませんでした。権限/ブラウザ設定を確認してください。");
     showScreen("mode-select");
     return;
   }
 
-  // 以前の detector があれば止める
-  if (detector) detector.stop();
+  if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
+    alert("手認識ライブラリの読み込みに失敗しました（CDN/回線）");
+    showScreen("mode-select");
+    return;
+  }
 
   detector = createHandDetector(video, {
+    warmupMs: 1200,
+    stableStreak: 13,
+    minIntervalMs: 900,
     onHint: (msg) => setHint(msg),
     onStableHand: (opponentHand) => {
       const my = decideMyHand(opponentHand, desiredMode);
@@ -58,7 +132,7 @@ async function startCameraAndDetect() {
     }
   });
 
-  detector.start(); // ここでカメラが起動する
+  detector.start();
 }
 
 function decideMyHand(op, mode) {
@@ -71,18 +145,21 @@ function decideMyHand(op, mode) {
   if (mode === "lose") {
     if (op === "rock") return "scissors";
     if (op === "scissors") return "paper";
-    if (op === "rock") return "paper"; // フォールバック
+    if (op === "paper") return "rock";
   }
   return "rock";
 }
 
 function showResult(myHand) {
   if (detector) detector.stop();
+
   const img = document.getElementById("result-image");
-  img.src = `./img/${myHand}.png`; //
+  img.src = `./img/${myHand}.png`;
+
   showScreen("result-screen");
 }
 
+/* 結果画面：タップで最初に戻る */
 document.addEventListener("click", () => {
   const result = document.getElementById("result-screen");
   if (result && result.classList.contains("active")) backToStart();
