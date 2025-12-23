@@ -42,7 +42,7 @@ function createHandDetector(videoEl, opts) {
     }
 
     if (now - startTs < warmupMs) {
-      onHint?.("解析中…");
+      onHint?.("じゃ～んけ～ん");
       streakHand = null;
       streakCount = 0;
       return;
