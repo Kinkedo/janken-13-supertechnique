@@ -7,117 +7,25 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #000;
-  color: #fff;
-  overflow: hidden;
-}
-
-/* 回転ステージ */
-.stage {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* 端末が縦向きのとき：ステージを回転して横UIにする */
-body.force-landscape .stage {
-  left: 50%;
-  top: 50%;
-  width: 100vh;
-  height: 100vw;
-  transform: translate(-50%, -50%) rotate(90deg);
-  transform-origin: center;
-}
-
-/* screens */
-.screen { display: none; width: 100%; height: 100%; }
+body { margin: 0; text-align: center; background: #000; color: #fff; font-family: sans-serif; }
+.screen { display: none; padding: 20px; }
 .screen.active { display: block; }
 
-/* mode select */
-#mode-select {
-  padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-btm));
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
-  gap: 14px;
-  text-align: center;
+#camera-box {
+  width: 90%;
+  height: 300px; /* ミニウィンドウ風 */
+  margin: 20px auto;
+  border: 2px dashed #444;
+  overflow: hidden;
+  border-radius: 12px;
 }
-#mode-select h1 { margin: 0; font-size: 2.0rem; letter-spacing: 0.02em; }
-#mode-select .sub { margin: 0; opacity: 0.9; }
+#camera { width: 100%; height: 100%; object-fit: cover; }
 
-.mode-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  max-width: 520px;
-  margin: 0 auto;
-  width: 100%;
-}
-@media (min-width: 520px) { .mode-row { grid-template-columns: 1fr 1fr 1fr; } }
+.mode-btn { font-size: 1.5rem; padding: 15px 30px; margin: 10px; border-radius: 10px; border: none; cursor: pointer; color: white; }
+.win { background: #28a745; }
+.draw { background: #fd7e14; }
+.lose { background: #dc3545; }
 
-.mode-btn {
-  border: none;
-  border-radius: 16px;
-  padding: 14px 16px;
-  font-size: 1.25rem;
-  font-weight: 800;
-  cursor: pointer;
-  color: #fff;
-}
-.mode-btn.win  { background: rgba(0, 200, 120, 0.85); }
-.mode-btn.draw { background: rgba(255, 140, 0, 0.85); }
-.mode-btn.lose { background: rgba(255, 60, 60, 0.85); }
+.back-btn { margin-top: 20px; padding: 10px; background: #555; color: white; border: none; border-radius: 5px; }
 
-.note { margin: 0; font-size: 0.9rem; opacity: 0.7; }
-
-/* camera */
-#camera-screen { position: relative; background: #000; }
-#camera {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-btm));
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  pointer-events: none;
-}
-
-.badge {
-  align-self: flex-start;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.55);
-  font-weight: 900;
-  letter-spacing: 0.04em;
-}
-
-.hint {
-  align-self: center;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.55);
-  font-weight: 800;
-  opacity: 0.95;
-}
-
-/* result */
-#result-screen { position: relative; background: #000; }
-#result-image {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain; /* cover にすると迫力。シュールなら contain */
-}
-
+#result-image { width: 100vw; height: 100vh; object-fit: contain; }
