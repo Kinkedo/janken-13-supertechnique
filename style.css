@@ -29,3 +29,29 @@ body { margin: 0; text-align: center; background: #000; color: #fff; font-family
 .back-btn { margin-top: 20px; padding: 10px; background: #555; color: white; border: none; border-radius: 5px; }
 
 #result-image { width: 100vw; height: 100vh; object-fit: contain; }
+/* --- ファイルの末尾に追加 --- */
+
+/* 縦持ち(portrait)のときだけ、結果画像を90度回転させて全画面にする */
+@media (orientation: portrait) {
+  body.result-only-landscape #result-image {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 100vh;  /* 画面の高さ分を幅に */
+    height: 100vw; /* 画面の幅分を高さに */
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center;
+    object-fit: contain; /* 画像全体を表示（迫力重視ならcover） */
+    z-index: 9999;
+    background: #000;
+  }
+}
+
+/* 横持ちのときは回転させずに全画面表示 */
+@media (orientation: landscape) {
+  #result-image {
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+  }
+}
