@@ -109,25 +109,48 @@ function createHandDetector(videoEl, opts) {
   return { start, stop };
 }
 
+// hand_detect.js の estimateHandV2 関数を差し替え
+
 function estimateHandV2(results) {
   const lm = results.multiHandLandmarks[0];
-  const handedness = (results.multiHandedness && results.multiHandedness[0] && results.multiHandedness[0].label) || "Right";
+  if (!lm) return null;
 
-  const isExtended = (tip, pip) => lm[tip].y < lm[pip].y;
+  // 指が伸びているか判定する補助関数
+  // 付け根(base)から中間関節(mid)までの距離より、
+  // 付け根(base)から指先(tip)までの距離が長ければ「伸びている」と判定
+  const isExtended = (baseIdx, midIdx, tipIdx) => {
+    const getDist = (p1, p2) => {
+      return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    };
+    const distBaseToMid = getDist(lm[baseIdx], lm[midIdx]);
+    const distBaseToTip = getDist(lm[baseIdx], lm[tipIdx]);
+    // 指先が中間関節より外側にあれば伸びている（1.2倍などのマージンを置くとより正確）
+    return distBaseToTip > distBaseToMid * 1.1;
+  };
 
-  const index  = isExtended(8, 6);
-  const middle = isExtended(12, 10);
-  const ring   = isExtended(16, 14);
-  const pinky  = isExtended(20, 18);
+  // 各指の判定 (0:手首, 5,9,13,17:各指の付け根)
+  const index  = isExtended(5, 6, 8);   // 人差し指
+  const middle = isExtended(9, 10, 12); // 中指
+  const ring   = isExtended(13, 14, 16);// 薬指
+  const pinky  = isExtended(17, 18, 20);// 小指
 
-  const thumbTip = lm[4], thumbIp = lm[3];
-  const thumb = (handedness === "Right") ? (thumbTip.x > thumbIp.x) : (thumbTip.x < thumbIp.x);
+  // 親指だけは特殊（横に開いているかどうかで判定することが多い）
+  // 簡易的に他の指と同様の距離判定にするか、今回は無視してもジャンケンは成立します
+  const thumb = isExtended(2, 3, 4);
 
-  const count = [thumb, index, middle, ring, pinky].filter(Boolean).length;
-
-  if (count <= 1) return "rock";
-  if (index && middle && !ring && !pinky) return "scissors";
-  if (count >= 4) return "paper";
+  // ジャンケンの形を判定
+  // チョキ：人差し指と中指だけが伸びている
+  if (index && middle && !ring && !pinky) {
+    return "scissors";
+  }
+  // パー：4本以上伸びている（親指は不安定なので除外気味に判定）
+  if (index && middle && ring && pinky) {
+    return "paper";
+  }
+  // グー：どの指も伸びていない
+  if (!index && !middle && !ring && !pinky) {
+    return "rock";
+  }
 
   return null;
 }
