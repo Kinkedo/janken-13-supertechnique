@@ -29,7 +29,8 @@ function setHint(msg) {
 /* 横向き強化（v2.2用） */
 function applyForceLandscape() {
   const isPortrait = window.matchMedia("(orientation: portrait)").matches;
-  document.body.classList.toggle("force-landscape", isPortrait);
+  document.body.classList.remove("force-landscape");
+  // 結果だけ横向きは result表示中にクラスで制御
 }
 window.addEventListener("resize", applyForceLandscape);
 window.addEventListener("orientationchange", applyForceLandscape);
@@ -65,13 +66,15 @@ async function startCameraAndDetect() {
   } catch (err) {
     console.error(err);
     alert("カメラを起動できませんでした。権限/ブラウザ設定を確認してください。");
-    showScreen("mode-select");
+    document.body.classList.remove("result-only-landscape");
+  showScreen("mode-select");
     return;
   }
 
   if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
     alert("手認識ライブラリの読み込みに失敗しました（CDN/回線）");
-    showScreen("mode-select");
+    document.body.classList.remove("result-only-landscape");
+  showScreen("mode-select");
     return;
   }
 
@@ -108,6 +111,7 @@ function showResult(myHand) {
   if (detector) detector.stop();
   const img = document.getElementById("result-image");
   img.src = `./img/${myHand}.png`;
+  document.body.classList.add("result-only-landscape");
   showScreen("result-screen");
 }
 
@@ -119,6 +123,6 @@ document.addEventListener("click", () => {
 function backToStart() {
   if (detector) detector.stop();
   setHint("相手の手を映して…");
+  document.body.classList.remove("result-only-landscape");
   showScreen("mode-select");
 }
-
