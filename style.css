@@ -121,15 +121,3 @@ body.force-landscape .stage {
   object-fit: contain; /* cover にすると迫力。シュールなら contain */
 }
 
-/* 追加：縦持ちのまま「結果画面だけ」横向き表示にするパッチ */
-@media (orientation: portrait) {
-  body.result-only-landscape #result-image {
-    left: 50%;
-    top: 50%;
-    width: 100vh;
-    height: 100vw;
-    transform: translate(-50%, -50%) rotate(90deg);
-    transform-origin: center;
-    position: absolute;
-  }
-}
