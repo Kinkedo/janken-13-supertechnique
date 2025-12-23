@@ -35,7 +35,7 @@ function createHandDetector(videoEl, opts) {
     const now = Date.now();
 
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-      onHint?.("相手の手を映して…");
+      onHint?.("じゃ～んけ～ん…");
       streakHand = null;
       streakCount = 0;
       return;
