@@ -59,15 +59,24 @@ function decideMyHand(op, mode) {
   return "rock";
 }
 
+// --- showResult 関数を書き換え ---
 function showResult(myHand) {
   if (detector) detector.stop();
+  
   const img = document.getElementById("result-image");
   img.src = `./img/${myHand}.png`;
+
+  // 結果表示時だけ回転用クラスを付与
+  document.body.classList.add("result-only-landscape");
   showScreen("result-screen");
 }
 
+// --- goBack 関数（または戻る処理）を書き換え ---
 function goBack() {
   if (detector) detector.stop();
+  
+  // モード選択に戻るときに回転用クラスを除去
+  document.body.classList.remove("result-only-landscape");
   showScreen("mode-select");
 }
 
