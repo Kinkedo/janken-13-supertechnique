@@ -1,105 +1,60 @@
-// script.js (安定版：内カメラ/安定性優先)
 let desiredMode = "win";
-let cameraStream = null;
 let detector = null;
 
 function selectMode(mode) {
   desiredMode = mode;
-  setBadge(mode);
   showScreen("camera-screen");
-  startCameraAndDetect();
+  // 画面遷移を最優先し、少し遅らせてカメラを起動（衝突回避）
+  setTimeout(startCameraAndDetect, 300);
 }
 
 function showScreen(id) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
-
-function setBadge(mode) {
-  const badge = document.getElementById("mode-badge");
-  if (!badge) return;
-  badge.textContent = (mode === "win") ? "かつ" : (mode === "draw") ? "あいこ" : "まけ";
-}
-
-function setHint(msg) {
-  const hint = document.getElementById("hint");
-  if (hint) hint.textContent = msg;
-}
-
-/* 横向き強化（v2.2用） */
-function applyForceLandscape() {
-  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
-  document.body.classList.toggle("force-landscape", isPortrait);
-}
-window.addEventListener("resize", applyForceLandscape);
-window.addEventListener("orientationchange", applyForceLandscape);
-applyForceLandscape();
-
-/* iOS対策 */
-function waitVideoReady(video) {
-  return new Promise(resolve => {
-    if (video.readyState >= 2) return resolve();
-    const t = setTimeout(() => resolve(), 2500);
-    video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
-  });
-}
-async function safePlay(video) { try { await video.play(); } catch (e) {} }
-
-async function startCameraStable(video) {
-  // ★安定性優先：外カメラ指定/列挙/掴み直しをしない
-  cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-  video.srcObject = cameraStream;
-  await waitVideoReady(video);
-  await safePlay(video);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(id);
+  if(target) target.classList.add('active');
 }
 
 async function startCameraAndDetect() {
   const video = document.getElementById("camera");
-  if (!video) return;
+  const hint = document.getElementById("hint");
 
-  setHint("カメラ起動中…");
-
-  try {
-    if (!cameraStream) await startCameraStable(video);
-    else { video.srcObject = cameraStream; await waitVideoReady(video); await safePlay(video); }
-  } catch (err) {
-    console.error(err);
-    alert("カメラを起動できませんでした。権限/ブラウザ設定を確認してください。");
-    showScreen("mode-select");
+  // ライブラリ確認
+  if (typeof Hands === "undefined" || typeof Camera === "undefined") {
+    alert("ライブラリを読み込み中です。もう一度ボタンを押してください。");
+    goBack();
     return;
   }
 
-  if (typeof Hands === "undefined" || typeof Camera === "undefined" || typeof createHandDetector !== "function") {
-    alert("手認識ライブラリの読み込みに失敗しました（CDN/回線）");
-    showScreen("mode-select");
-    return;
-  }
+  if (detector) detector.stop();
 
   detector = createHandDetector(video, {
-    warmupMs: 1200,
-    stableStreak: 13,
-    minIntervalMs: 900,
-    onHint: (msg) => setHint(msg),
+    onHint: (msg) => { if(hint) hint.textContent = msg; },
     onStableHand: (opponentHand) => {
       const my = decideMyHand(opponentHand, desiredMode);
       showResult(my);
     }
   });
 
-  detector.start();
+  try {
+    detector.start();
+  } catch (err) {
+    console.error(err);
+    alert("カメラが使えません。ブラウザの設定を確認してください。");
+    goBack();
+  }
 }
 
 function decideMyHand(op, mode) {
   if (mode === "win") {
     if (op === "rock") return "paper";
     if (op === "scissors") return "rock";
-    if (op === "paper") return "scissors";
+    return "scissors";
   }
   if (mode === "draw") return op;
   if (mode === "lose") {
     if (op === "rock") return "scissors";
     if (op === "scissors") return "paper";
-    if (op === "paper") return "rock";
+    return "rock";
   }
   return "rock";
 }
@@ -111,13 +66,14 @@ function showResult(myHand) {
   showScreen("result-screen");
 }
 
-document.addEventListener("click", () => {
-  const result = document.getElementById("result-screen");
-  if (result && result.classList.contains("active")) backToStart();
-});
-
-function backToStart() {
+function goBack() {
   if (detector) detector.stop();
-  setHint("相手の手を映して…");
   showScreen("mode-select");
 }
+
+// 結果画面タップで戻る
+document.addEventListener("click", () => {
+  if (document.getElementById("result-screen").classList.contains("active")) {
+    goBack();
+  }
+});
