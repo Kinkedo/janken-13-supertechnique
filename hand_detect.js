@@ -1,3 +1,5 @@
+// hand_detect.js (v2.7 統合完了版)
+
 function createHandDetector(videoEl, opts) {
   const {
     onStableHand,
@@ -25,74 +27,88 @@ function createHandDetector(videoEl, opts) {
     minTrackingConfidence: 0.7
   });
 
-  // --- ここが重要：結果を受け取った時の処理 ---
+  // メインの解析ループ
   hands.onResults((results) => {
     if (!running) return;
     const now = Date.now();
 
+    // 手が映っていない場合
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-      onHint?.("じゃ～んけ～ん…");
+      onHint?.("相手の手を映して…");
       streakHand = null;
       streakCount = 0;
       return;
     }
 
+    // ウォームアップ期間
     if (now - startTs < warmupMs) {
-      onHint?.("じゃ～んけ～ん");
-      streakHand = null;
-      streakCount = 0;
+      onHint?.("準備中…");
       return;
     }
 
-    // ここで新しい判定関数を呼び出すように修正しました
-    const hand = internalEstimateHand(results.multiHandLandmarks[0]);
+    // --- 判定ロジックの実行 ---
+    const lm = results.multiHandLandmarks[0];
+    const hand = runJankenLogic(lm);
     
     if (!hand) {
-      onHint?.("もうちょい手を大きく…");
+      onHint?.("もうちょいハッキリ…");
       streakHand = null;
       streakCount = 0;
       return;
     }
 
-    onHint?.("解析中…");
+    // ヒントの表示（今何に見えているか）
+    const handName = hand === "rock" ? "グー" : hand === "scissors" ? "チョキ" : "パー";
+    onHint?.(`解析中: ${handName}`);
 
-    if (hand === streakHand) streakCount += 1;
-    else { streakHand = hand; streakCount = 1; }
+    // 連続一致チェック
+    if (hand === streakHand) {
+      streakCount += 1;
+    } else {
+      streakHand = hand;
+      streakCount = 1;
+    }
 
+    // 確定判定
     if (streakCount >= stableStreak && (now - lastFireTs) > minIntervalMs) {
       lastFireTs = now;
       onHint?.("確定！");
       onStableHand?.(hand);
-      stop();
+      stop(); // 確定したら止める
     }
   });
 
-  // 内部判定ロジック
-  function internalEstimateHand(lm) {
+  // --- ジャンケン判定の中身 ---
+  function runJankenLogic(lm) {
     const wrist = lm[0];
-    const dist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+    const dist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
     
+    // 指が伸びているか（手首から指先までの距離が、手首から付け根までの1.2倍以上か）
     const isExtended = (mcpIdx, tipIdx) => {
       const dTip = dist(wrist, lm[tipIdx]);
       const dMcp = dist(wrist, lm[mcpIdx]);
-      return dTip > dMcp * 1.20; // 1.2倍でグー判定を安定化
+      return dTip > dMcp * 1.22; // 1.22倍。ここを大きくするとグー判定がより強くなります。
     };
 
-    const index  = isExtended(5, 8);
-    const middle = isExtended(9, 12);
-    const ring   = isExtended(13, 16);
-    const pinky  = isExtended(17, 18, 20);
+    const index  = isExtended(5, 8);   // 人差し指
+    const middle = isExtended(9, 12);  // 中指
+    const ring   = isExtended(13, 16); // 薬指
+    const pinky  = isExtended(17, 20); // 小指
 
     const extCount = [index, middle, ring, pinky].filter(Boolean).length;
 
-    // グー：指が2本以下ならグー（対面の浮き対策）
+    // 【判定1】グー：伸びている指が2本以下
+    // 対面だと指が少し浮くので、2本までならグーとみなして安定させる
     if (extCount <= 2) {
-      if (index && middle && !ring && !pinky) return "scissors"; // 綺麗なチョキは優先
+      // ただし、人差し指と中指だけが綺麗に立っていればチョキ
+      if (index && middle && !ring && !pinky) return "scissors";
       return "rock";
     }
-    // チョキ
+
+    // 【判定2】チョキ：人差し指と中指が立っている
     if (index && middle && !ring && !pinky) return "scissors";
-    // パー
+
+    // 【判定3】パー：3本以上立っている
     if (extCount >= 3) return "paper";
 
     return null;
@@ -117,7 +133,7 @@ function createHandDetector(videoEl, opts) {
     });
 
     mpCamera.start().catch(err => {
-      console.error("Camera Start Error:", err);
+      console.error("Camera Error:", err);
       alert("カメラの開始に失敗しました。");
     });
     onHint?.("解析開始…");
@@ -127,7 +143,10 @@ function createHandDetector(videoEl, opts) {
     running = false;
     streakHand = null;
     streakCount = 0;
-    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    if (mpCamera) {
+      mpCamera.stop();
+      mpCamera = null;
+    }
   }
 
   return { start, stop };
