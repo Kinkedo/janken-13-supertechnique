@@ -109,48 +109,54 @@ function createHandDetector(videoEl, opts) {
   return { start, stop };
 }
 
-// hand_detect.js の estimateHandV2 関数を差し替え
+// hand_detect.js (v2.5 グー認識強化パッチ)
 
-function estimateHandV2(results) {
-  const lm = results.multiHandLandmarks[0];
-  if (!lm) return null;
+/* --- 距離ベースの指伸び判定（しきい値を1.2に上げてグーを出しやすくする） --- */
+function isFingerExtendedByDistance(lm, mcp, tip) {
+  const wrist = lm[0];
+  const dist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+  
+  const dTip = dist(wrist, lm[tip]);
+  const dMcp = dist(wrist, lm[mcp]);
+  
+  // 以前の1.12から1.2に引き上げ。
+  // これにより、中途半端な指の浮きで「伸びている」と判定されにくくなります。
+  return dTip > dMcp * 1.20; 
+}
 
-  // 指が伸びているか判定する補助関数
-  // 付け根(base)から中間関節(mid)までの距離より、
-  // 付け根(base)から指先(tip)までの距離が長ければ「伸びている」と判定
-  const isExtended = (baseIdx, midIdx, tipIdx) => {
-    const getDist = (p1, p2) => {
-      return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-    };
-    const distBaseToMid = getDist(lm[baseIdx], lm[midIdx]);
-    const distBaseToTip = getDist(lm[baseIdx], lm[tipIdx]);
-    // 指先が中間関節より外側にあれば伸びている（1.2倍などのマージンを置くとより正確）
-    return distBaseToTip > distBaseToMid * 1.1;
-  };
+function estimateHandByDistance(lm) {
+  // 4本の指の状態を取得
+  const index  = isFingerExtendedByDistance(lm, 5, 8);
+  const middle = isFingerExtendedByDistance(lm, 9, 12);
+  const ring   = isFingerExtendedByDistance(lm, 13, 16);
+  const pinky  = isFingerExtendedByDistance(lm, 17, 20);
 
-  // 各指の判定 (0:手首, 5,9,13,17:各指の付け根)
-  const index  = isExtended(5, 6, 8);   // 人差し指
-  const middle = isExtended(9, 10, 12); // 中指
-  const ring   = isExtended(13, 14, 16);// 薬指
-  const pinky  = isExtended(17, 18, 20);// 小指
+  const extCount = [index, middle, ring, pinky].filter(Boolean).length;
 
-  // 親指だけは特殊（横に開いているかどうかで判定することが多い）
-  // 簡易的に他の指と同様の距離判定にするか、今回は無視してもジャンケンは成立します
-  const thumb = isExtended(2, 3, 4);
+  // --- ジャンケン判定ロジック ---
 
-  // ジャンケンの形を判定
-  // チョキ：人差し指と中指だけが伸びている
+  // 【グー強化】指が1本、または2本までなら「グー」とみなす（遊びを持たせる）
+  // 対面だと人差し指が浮きやすいため、これくらいが丁度いいです。
+  if (extCount <= 2) {
+    // ただし、人差し指と中指だけが綺麗に起きている場合はチョキを優先
+    if (index && middle && !ring && !pinky) {
+       return "scissors";
+    }
+    return "rock";
+  }
+
+  // 【チョキ】人差し指と中指が起きている
   if (index && middle && !ring && !pinky) {
     return "scissors";
   }
-  // パー：4本以上伸びている（親指は不安定なので除外気味に判定）
-  if (index && middle && ring && pinky) {
+
+  // 【パー】3本以上起きている
+  if (extCount >= 3) {
     return "paper";
-  }
-  // グー：どの指も伸びていない
-  if (!index && !middle && !ring && !pinky) {
-    return "rock";
   }
 
   return null;
 }
+
+/* --- 手の品質チェック（frontness等は既存のものを継承） --- */
+// (createHandDetector内の hands.onResults で上記関数を呼び出すようにしてください)
