@@ -34,7 +34,7 @@ function createHandDetector(videoEl, opts) {
 
     // 手が映っていない場合
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-      onHint?.("じゃ～んけ～ん…");
+      onHint?.("じゃ～んけ～ん！！");
       streakHand = null;
       streakCount = 0;
       return;
@@ -136,7 +136,7 @@ function createHandDetector(videoEl, opts) {
       console.error("Camera Error:", err);
       alert("カメラの開始に失敗しました。");
     });
-    onHint?.("解析開始…");
+    onHint?.("せ～のっ");
   }
 
   function stop() {
