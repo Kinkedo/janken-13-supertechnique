@@ -1,5 +1,3 @@
-// hand_detect.js (v2.2)
-
 function createHandDetector(videoEl, opts) {
   const {
     onStableHand,
@@ -11,10 +9,8 @@ function createHandDetector(videoEl, opts) {
 
   let running = false;
   let mpCamera = null;
-
   let streakHand = null;
   let streakCount = 0;
-
   let startTs = 0;
   let lastFireTs = 0;
 
@@ -29,9 +25,9 @@ function createHandDetector(videoEl, opts) {
     minTrackingConfidence: 0.7
   });
 
+  // --- ここが重要：結果を受け取った時の処理 ---
   hands.onResults((results) => {
     if (!running) return;
-
     const now = Date.now();
 
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
@@ -48,7 +44,9 @@ function createHandDetector(videoEl, opts) {
       return;
     }
 
-    const hand = estimateHandV2(results);
+    // ここで新しい判定関数を呼び出すように修正しました
+    const hand = internalEstimateHand(results.multiHandLandmarks[0]);
+    
     if (!hand) {
       onHint?.("もうちょい手を大きく…");
       streakHand = null;
@@ -69,12 +67,40 @@ function createHandDetector(videoEl, opts) {
     }
   });
 
-  // hand_detect.js (修正箇所：start関数内)
+  // 内部判定ロジック
+  function internalEstimateHand(lm) {
+    const wrist = lm[0];
+    const dist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+    
+    const isExtended = (mcpIdx, tipIdx) => {
+      const dTip = dist(wrist, lm[tipIdx]);
+      const dMcp = dist(wrist, lm[mcpIdx]);
+      return dTip > dMcp * 1.20; // 1.2倍でグー判定を安定化
+    };
+
+    const index  = isExtended(5, 8);
+    const middle = isExtended(9, 12);
+    const ring   = isExtended(13, 16);
+    const pinky  = isExtended(17, 18, 20);
+
+    const extCount = [index, middle, ring, pinky].filter(Boolean).length;
+
+    // グー：指が2本以下ならグー（対面の浮き対策）
+    if (extCount <= 2) {
+      if (index && middle && !ring && !pinky) return "scissors"; // 綺麗なチョキは優先
+      return "rock";
+    }
+    // チョキ
+    if (index && middle && !ring && !pinky) return "scissors";
+    // パー
+    if (extCount >= 3) return "paper";
+
+    return null;
+  }
 
   function start() {
     if (running) return;
     running = true;
-
     streakHand = null;
     streakCount = 0;
     startTs = Date.now();
@@ -85,9 +111,8 @@ function createHandDetector(videoEl, opts) {
         if (!running) return;
         await hands.send({ image: videoEl });
       },
-      width: 1280, // 解像度を少し上げる
+      width: 1280,
       height: 720,
-      // 'environment' で外カメラをリクエスト（なければ内側が動く）
       facingMode: "environment" 
     });
 
@@ -95,7 +120,6 @@ function createHandDetector(videoEl, opts) {
       console.error("Camera Start Error:", err);
       alert("カメラの開始に失敗しました。");
     });
-    
     onHint?.("解析開始…");
   }
 
@@ -108,55 +132,3 @@ function createHandDetector(videoEl, opts) {
 
   return { start, stop };
 }
-
-// hand_detect.js (v2.5 グー認識強化パッチ)
-
-/* --- 距離ベースの指伸び判定（しきい値を1.2に上げてグーを出しやすくする） --- */
-function isFingerExtendedByDistance(lm, mcp, tip) {
-  const wrist = lm[0];
-  const dist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
-  
-  const dTip = dist(wrist, lm[tip]);
-  const dMcp = dist(wrist, lm[mcp]);
-  
-  // 以前の1.12から1.2に引き上げ。
-  // これにより、中途半端な指の浮きで「伸びている」と判定されにくくなります。
-  return dTip > dMcp * 1.20; 
-}
-
-function estimateHandByDistance(lm) {
-  // 4本の指の状態を取得
-  const index  = isFingerExtendedByDistance(lm, 5, 8);
-  const middle = isFingerExtendedByDistance(lm, 9, 12);
-  const ring   = isFingerExtendedByDistance(lm, 13, 16);
-  const pinky  = isFingerExtendedByDistance(lm, 17, 20);
-
-  const extCount = [index, middle, ring, pinky].filter(Boolean).length;
-
-  // --- ジャンケン判定ロジック ---
-
-  // 【グー強化】指が1本、または2本までなら「グー」とみなす（遊びを持たせる）
-  // 対面だと人差し指が浮きやすいため、これくらいが丁度いいです。
-  if (extCount <= 2) {
-    // ただし、人差し指と中指だけが綺麗に起きている場合はチョキを優先
-    if (index && middle && !ring && !pinky) {
-       return "scissors";
-    }
-    return "rock";
-  }
-
-  // 【チョキ】人差し指と中指が起きている
-  if (index && middle && !ring && !pinky) {
-    return "scissors";
-  }
-
-  // 【パー】3本以上起きている
-  if (extCount >= 3) {
-    return "paper";
-  }
-
-  return null;
-}
-
-/* --- 手の品質チェック（frontness等は既存のものを継承） --- */
-// (createHandDetector内の hands.onResults で上記関数を呼び出すようにしてください)
